@@ -1,6 +1,12 @@
 {
-  "name": "rm-cms",
+  "name": "@irbisadm/rm-cms",
   "version": "1.0.0",
+  "author": {
+    "name": "Igor Buldin",
+    "email": "i@irbisadm.dev",
+    "url": "https://github.com/irbisadm"
+  },
+  "license": "GPL-3-0-or-later",
   "dependencies": {
   }
 }
