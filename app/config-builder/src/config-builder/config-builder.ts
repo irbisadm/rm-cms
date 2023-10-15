@@ -9,17 +9,14 @@
 import {ScanResult} from "../path-scanner";
 import * as fs from "fs";
 import * as path from 'path';
-import * as child_process from "child_process";
 import * as process from "process";
 
-const REG_LOCATION = /%location%/g;
 const REG_BASE_PATH = /%basePath%/g;
 const REG_LOCATIONS = /%locations%/g;
 
-async function readConfigs():Promise<{base:string,template:string}>{
+async function readBaseConfigs():Promise<string>{
   const basePath = path.resolve(process.env.BASE_TEMPLATE as string);
-  const locationPath = path.resolve(process.env.LOCATION_TEMPLATE as string);
-  const [base,template] = await Promise.all([
+  const base =
     new Promise<string>((resolve,reject)=>{
       console.log(`RUN: Read base config from ${basePath}`);
       fs.readFile(basePath,(err,data)=>{
@@ -29,20 +26,9 @@ async function readConfigs():Promise<{base:string,template:string}>{
         }
         resolve(data.toString());
       });
-    }),
-    new Promise<string>((resolve,reject)=>{
-      console.log(`RUN: Read location config from ${locationPath}`);
-      fs.readFile(locationPath,(err,data)=>{
-        if(err){
-          reject(err);
-          return;
-        }
-        resolve(data.toString());
-      });
-    }),
-  ]);
+    });
   console.log(`OK: Config was created`);
-  return {base,template};
+  return base;
 }
 
 async function writeConfig(config:string):Promise<void>{
@@ -61,36 +47,69 @@ async function writeConfig(config:string):Promise<void>{
 
 async function configBuilder(scanResult: ScanResult): Promise<void> {
   const {basePath,projectPathList} = scanResult;
-  const {base,template} = await readConfigs();
-  const sectionsList = projectPathList.map(projectPath=>buildSection(template,projectPath));
+  const base = await readBaseConfigs();
+  const sectionsList = projectPathList.map(projectPath=>buildSection(projectPath));
   let outputBase = base.replace(REG_BASE_PATH,basePath)
                               .replace(REG_LOCATIONS,sectionsList.join("\n\n"));
   console.log(`OK: Config was built`)
-  console.log(`DBG:
-${outputBase}
-`)
   await writeConfig(outputBase);
   console.log(`OK: Config was written`);
-  await validateConfig();
 }
 
-function buildSection(template:string,projectPath:string):string{
+function buildSection(projectPath:string):string{
   console.log(`RUN: Build section for ${projectPath}`);
-  return template.replace(REG_LOCATION,projectPath);
+  if(!projectPath){
+    return buildRootSection();
+  }
+  return buildPathSection(projectPath);
 }
 
-async function validateConfig(){
-  const outputPath = path.resolve(process.env.OUTPUT_CONFIG as string);
-  const nginxPath = path.resolve(process.env.NGINX_PATH as string);
-  child_process.exec(`${nginxPath} -t -c ${outputPath}`, (error, stdout, stderr)=>{
-    if (error) {
-      console.error(`ERR: ${stderr}`);
-      console.error(`ERR: Config validation failed`);
-      process.exit(1);
+function buildRootSection(){
+  return `
+  location / {
+    if (-f $request_filename ) {
+      break;
     }
-    console.error(`OUT: ${stdout}`);
-    console.log(`OK: Config validation passed`);
-  });
+    if ($args ~ "_escaped_fragment_") {
+      rewrite ^/(.+)/$ /snippets/$1.html last;
+      rewrite ^/([.a-zA-Z0-9-_/]+)$ /snippets/$1.html last;
+      rewrite ^/ /snippets/1.html last;
+    }
+    location = / {
+      if ($args ~ "_escaped_fragment_") {
+        rewrite ^/ /snippets/1.html last;
+      } 
+    }
+    rewrite ^/?$ /index.html last;
+    rewrite ^/[.a-zA-Z0-9-_]+(/(.*))? /$2 last;
+    try_files $uri $uri/;
+  }
+`;
+}
+
+function buildPathSection(projectPath:string){
+  const curedPath = projectPath.replace(/\\/g,'/');
+  return `
+location /${curedPath} {
+  if (-f $request_filename ) {
+    break;
+  }
+  if ($args ~ "_escaped_fragment_") {
+    rewrite ^/${curedPath}/(.+)/$ /snippets/$1.html last;
+    rewrite ^/${curedPath}/([.a-zA-Z0-9-_/]+)$ /snippets/$1.html last;
+    rewrite ^/${curedPath}/ /snippets/1.html last;
+  }
+  location = /${curedPath} {
+    if ($args ~ "_escaped_fragment_") {
+      rewrite ^/${curedPath} /${curedPath}/snippets/1.html last;
+    }
+    return 301 /${curedPath}/;
+  }
+  rewrite ^/${curedPath}/?$ /${curedPath}/index.html last;
+  rewrite ^/${curedPath}/[.a-zA-Z0-9-_]+(/(.*))? /${curedPath}/$2 last;
+  try_files $uri $uri/;
+}
+`;
 }
 
 export { configBuilder };
