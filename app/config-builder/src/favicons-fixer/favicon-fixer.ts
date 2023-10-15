@@ -6,3 +6,22 @@
  * You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import {ScanResult} from "../path-scanner";
+import * as path from "path";
+import * as fs from "fs";
+import process from "process";
+
+async function faviconFixer(scanResult:ScanResult){
+  scanResult.projectPathList.forEach(el=>{
+    const imgPath = path.join(scanResult.basePath,el,'dist','img');
+    console.log(`RUN: Remove favicon folder ${imgPath}`);
+    fs.rmSync(path.join(imgPath,'favicons'),{recursive:true,force:true});
+    const targetFavPath = path.resolve(process.env.FAVICONS_FILES as string);
+    console.log(`RUN: Copy favicon folder from ${targetFavPath}`);
+    fs.copyFileSync(targetFavPath,imgPath);
+  });
+
+
+}
+
+export {faviconFixer}

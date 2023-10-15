@@ -6,19 +6,4 @@
  * You should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import * as dotenv from 'dotenv';
-import {pathScanner} from "./path-scanner";
-import {configBuilder} from "./config-builder";
-import {faviconFixer} from "./favicons-fixer";
-
-dotenv.config();
-
-async function main(){
-  console.log(`------------------------------------------------------------------------------------------------------------------------`);
-  console.log(`${new Date().toISOString()} Performing ReadyMag dirictory scanning at ${process.env.RM_ROOT_PATH}`);
-  const scanResult = await pathScanner(process.env.RM_ROOT_PATH as string);
-  await configBuilder(scanResult);
-  await faviconFixer(scanResult);
-}
-
-main();
+export * from './favicon-fixer';
