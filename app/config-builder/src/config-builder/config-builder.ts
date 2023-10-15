@@ -10,6 +10,7 @@ import {ScanResult} from "../path-scanner";
 import * as fs from "fs";
 import * as path from 'path';
 import * as process from "process";
+import {buildPathSection, buildRootSection} from "./section-builder";
 
 const REG_BASE_PATH = /%basePath%/g;
 const REG_LOCATIONS = /%locations%/g;
@@ -64,52 +65,5 @@ function buildSection(projectPath:string):string{
   return buildPathSection(projectPath);
 }
 
-function buildRootSection(){
-  return `
-  location / {
-    if (-f $request_filename ) {
-      break;
-    }
-    if ($args ~ "_escaped_fragment_") {
-      rewrite ^/(.+)/$ /snippets/$1.html last;
-      rewrite ^/([.a-zA-Z0-9-_/]+)$ /snippets/$1.html last;
-      rewrite ^/ /snippets/1.html last;
-    }
-    location = / {
-      if ($args ~ "_escaped_fragment_") {
-        rewrite ^/ /snippets/1.html last;
-      } 
-    }
-    rewrite ^/?$ /index.html last;
-    rewrite ^/[.a-zA-Z0-9-_]+(/(.*))? /$2 last;
-    try_files $uri $uri/;
-  }
-`;
-}
-
-function buildPathSection(projectPath:string){
-  const curedPath = projectPath.replace(/\\/g,'/');
-  return `
-location /${curedPath} {
-  if (-f $request_filename ) {
-    break;
-  }
-  if ($args ~ "_escaped_fragment_") {
-    rewrite ^/${curedPath}/(.+)/$ /snippets/$1.html last;
-    rewrite ^/${curedPath}/([.a-zA-Z0-9-_/]+)$ /snippets/$1.html last;
-    rewrite ^/${curedPath}/ /snippets/1.html last;
-  }
-  location = /${curedPath} {
-    if ($args ~ "_escaped_fragment_") {
-      rewrite ^/${curedPath} /${curedPath}/snippets/1.html last;
-    }
-    return 301 /${curedPath}/;
-  }
-  rewrite ^/${curedPath}/?$ /${curedPath}/index.html last;
-  rewrite ^/${curedPath}/[.a-zA-Z0-9-_]+(/(.*))? /${curedPath}/$2 last;
-  try_files $uri $uri/;
-}
-`;
-}
 
 export { configBuilder };
